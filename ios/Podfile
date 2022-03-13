@@ -7,6 +7,17 @@ platform :ios, '13.0'
 $RNMBGL_Use_SPM = true
 $RNMGL_USE_MAPLIBRE = true
 
+STATIC_LIBRARIES = [
+  'RNScreens',
+  'react-native-compass-heading',
+  'react-native-safe-area-context',
+  'react-native-mapbox-gl',
+  'RNVectorIcons',
+  'RNCMaskedView',
+  'RNDefaultPreference',
+  'react-native-proximiio'
+]
+
 install! 'cocoapods', :disable_input_output_paths => true
 
 target 'RNTest' do
@@ -31,11 +42,38 @@ target 'RNTest' do
 
   pre_install do |installer|
     $RNMBGL.pre_install(installer)
+    installer.pod_targets.each do |pod|
+     if STATIC_LIBRARIES.include?(pod.name)
+       def pod.build_type
+         Pod::BuildType.static_library
+       end
+     end
+   end
   end
 
   post_install do |installer|
     $RNMBGL.post_install(installer)
     react_native_post_install(installer)
     #__apply_Xcode_12_5_M1_post_install_workaround(installer)
+    installer.pods_project.targets.each do |target|
+     target.build_configurations.each do |config|
+         config.build_settings['ENABLE_BITCODE'] = 'NO'
+     end
+
+     installer.pods_project.targets.each do |target|
+       target.build_configurations.each do |config|
+         config.build_settings['ARCHS'] = '${ARCHS_STANDARD_64_BIT}'
+       end
+     end
+
+     # https://github.com/facebook/react-native/issues/31034
+     if (target.name&.eql?('FBReactNativeSpec'))
+       target.build_phases.each do |build_phase|
+         if (build_phase.respond_to?(:name) && build_phase.name.eql?('[CP-User] Generate Specs'))
+           target.build_phases.move(build_phase, 0)
+         end
+       end
+     end
+   end
   end
 end
